@@ -1,0 +1,11 @@
+/__pycache__
+*.pyc
+*.pth
+*.npy
+/results
+*.out
+*.sh
+*.bin
+*.h5
+*.pt
+*.safetensors

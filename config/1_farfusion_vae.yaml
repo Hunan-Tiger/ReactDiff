@@ -1,0 +1,75 @@
+arch:
+    type: TransformerVAE
+    args:
+        output_emotion_dim: 25
+        output_3dmm_dim: 58
+        
+        depth: 2
+        window_size: 50
+        seq_len: 750
+        video_dim: 25088
+        audio_dim: 1536
+        
+        coeff_3dmm: 58
+        emotion: 25
+        feature_dim: 128
+        hidden_dim: 1024
+        device: 'cuda'
+
+loss:
+    type: Transvae_Loss
+    args: 
+        w_emo: 1
+        w_coeff: 1
+        w_kld: 0.0001
+
+optimizer:
+    lr: 0.0001
+    weight_decay: 5e-4
+    gamma: 0.1
+    warmup_factor: 0.01
+    milestones: [20, 25]
+    warmup-step: 50
+
+trainer:
+    epochs: 100
+    resume: 
+    out_dir: ./results
+    save_period: 50
+    val_period: 50
+
+dataset:
+    dataset_path: /public_bme/data/v-lijm/REACT_2024
+    split: train
+
+    img_size: 256
+    crop_size: 224
+    clip_length: 750
+
+    batch_size: 16
+    shuffle: True
+    num_workers: 16
+
+validation_dataset:
+    dataset_path: /public_bme/data/v-lijm/REACT_2024
+    split: val
+
+    img_size: 256
+    crop_size: 224
+    clip_length: 750
+
+    batch_size: 16
+    shuffle: False
+    num_workers: 16
+
+test_dataset:
+    dataset_path: ./data
+    split: test
+
+    img_size: 256
+    crop_size: 224
+    clip_length: 750
+
+    batch_size: 16
+    shuffle: False
+    num_workers: 16
