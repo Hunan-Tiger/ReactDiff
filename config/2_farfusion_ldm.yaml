@@ -4,7 +4,7 @@ arch:
         # diffusion config
         diffusion_steps: 20
         predict: epsilon
-        loss_type: l1
+        loss_type: l1 #试试mse
         loss_coef: 1
 
         # 训练时是否重复数据
@@ -19,15 +19,15 @@ arch:
         use_scale_shift_norm: False
         
         #ldm config
-        emb_length: 128
+        emb_length: 256 # same as feature_dim of MMT
         window_size: 50
         seq_len: 750
         online: false
-        autoencoder_path: ./results/TransformerVAE/checkpoint_best.pth
+        autoencoder_path: /public_bme/data/v-lijm/REACT_2024/weight/TransformerVAE/checkpoint_epoch200_.pth
         freeze_encoder: true
 
 loss:
-    type: BeLFusionLoss
+    type: ReactDiffLoss
     args: 
         losses_multipliers: 10
 
@@ -36,11 +36,11 @@ optimizer:
     weight_decay: 5e-4
 
 trainer:
-    epochs: 100
+    epochs: 200
     # if has checkpoint and want to continue training.
-    resume: #./results/LatentMLPMatcher/checkpoint_best.pth
-    out_dir: ./results
-    val_period: 50
+    resume: 
+    out_dir: /public_bme/data/v-lijm/REACT_2024/weight
+    val_period: 20
 
 dataset:
     dataset_path: /public_bme/data/v-lijm/REACT_2024
@@ -56,7 +56,7 @@ dataset:
 
 validation_dataset:
     dataset_path: /public_bme/data/v-lijm/REACT_2024
-    split: val
+    split: test
 
     img_size: 256
     crop_size: 224

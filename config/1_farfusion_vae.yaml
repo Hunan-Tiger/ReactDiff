@@ -12,15 +12,15 @@ arch:
         
         coeff_3dmm: 58
         emotion: 25
-        feature_dim: 128
+        feature_dim: 256
         hidden_dim: 1024
         device: 'cuda'
 
 loss:
-    type: Transvae_Loss
+    type: MMT_Loss
     args: 
-        w_emo: 1
-        w_coeff: 1
+        w_emo: 10
+        w_coeff: 10
         w_kld: 0.0001
 
 optimizer:
@@ -32,9 +32,9 @@ optimizer:
     warmup-step: 50
 
 trainer:
-    epochs: 100
+    epochs: 200
     resume: 
-    out_dir: ./results
+    out_dir: /public_bme/data/v-lijm/REACT_2024/weight
     save_period: 50
     val_period: 50
 
@@ -52,7 +52,7 @@ dataset:
 
 validation_dataset:
     dataset_path: /public_bme/data/v-lijm/REACT_2024
-    split: val
+    split: test #直接跑测试集
 
     img_size: 256
     crop_size: 224
@@ -63,7 +63,7 @@ validation_dataset:
     num_workers: 16
 
 test_dataset:
-    dataset_path: ./data
+    dataset_path: /public_bme/data/v-lijm/REACT_2024
     split: test
 
     img_size: 256
@@ -72,4 +72,4 @@ test_dataset:
 
     batch_size: 16
     shuffle: False
-    num_workers: 16
+    num_workers: 8

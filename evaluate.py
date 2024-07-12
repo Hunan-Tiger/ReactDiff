@@ -9,7 +9,6 @@ from tqdm import tqdm
 import logging
 from dataset import ReactionDataset
 from utils import AverageMeter
-from model.losses import VAELoss
 from metric import *
 from dataset import get_dataloader
 from utils import load_config
@@ -146,7 +145,8 @@ def main(args):
         dataset_cfg.dataset_path = args.dataset_path
         data_loader = get_dataloader(dataset_cfg, args.split, 
                                     load_audio_s=True, load_audio_l=True, load_video_s=True, load_video_l=True,
-                                    load_emotion_s=True, load_emotion_l=True, load_3dmm_s=True, load_3dmm_l=True, load_ref=False)
+                                    load_emotion_s=True, load_emotion_l=True, load_3dmm_s=True, load_3dmm_l=True, load_ref=False,
+                                    repeat_mirrored=True)
         model = getattr(module_arch, cfg.arch.type)(cfg.arch.args)
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         model.to(device)

@@ -604,7 +604,7 @@ class GDUnet_Latent(nn.Module):
 if __name__ == '__main__':
     model = GDUnet_Latent()
     x = torch.randn(2, 50, 128)
-    t = torch.tensor([1,2])
+    t = torch.tensor([1,2,3,4])
     cond = torch.randn(2, 50)
     out = model(x, t, cond)
     print(out.shape)

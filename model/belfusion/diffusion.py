@@ -14,8 +14,9 @@ import math
 import numpy as np
 import torch as th
 
-LOSSES_TYPES = ["mse", "mse_l1", ]
-MSE, MSE_L1 = LOSSES_TYPES
+import torch.nn.functional as F
+
+
 
 
 def mean_flat(tensor):
@@ -123,10 +124,12 @@ var_type_dict = {
 class LossType(enum.Enum):
     MSE = enum.auto()
     L1 = enum.auto()
+    Huber = enum.auto()
 
 loss_type_dict = {
     "mse": LossType.MSE,
-    "l1": LossType.L1
+    "l1": LossType.L1,
+    "huber": LossType.Huber
 }
 
 class GaussianDiffusion:
@@ -877,7 +880,7 @@ class LatentDiffusion(GaussianDiffusion):
 
         model_kwargs["cond"] = model_kwargs["cond"].repeat_interleave(self.k, dim=0) if k_active else model_kwargs["cond"] # repeat K times
 
-        t = t.repeat_interleave(self.k, dim=0) if k_active else t # (2, 25) -> (2, ..., 2, 25, ..., 25)
+        t = t.repeat_interleave(self.k, dim=0) if k_active else t
 
         if model_kwargs is None:
             model_kwargs = {}
@@ -886,6 +889,7 @@ class LatentDiffusion(GaussianDiffusion):
 
         x_t = self.q_sample(x_start_repeated, t, noise=noise) # apply perturbations from '0' to 't' to original image (x_start) 
 
+        
         model_output = model(x_t, self._scale_timesteps(t), **model_kwargs)
         target = {
                 ModelMeanType.PREVIOUS_X: self.q_posterior_mean_variance(
@@ -897,9 +901,11 @@ class LatentDiffusion(GaussianDiffusion):
 
         loss = 0.0
         if self.loss_type == LossType.L1:
-            loss = th.mean((model_output - target).abs()) * self.loss_coef
+            loss = F.l1_loss(model_output, target) * self.loss_coef
         elif self.loss_type == LossType.MSE:
-            loss = th.mean((model_output - target) ** 2) * self.loss_coef
+            loss = F.mse_loss(model_output, target) * self.loss_coef
+        elif self.loss_type == LossType.Huber:
+            loss = F.huber_loss(model_output, target, delta=1.0) * self.loss_coef
         else:
             raise NotImplementedError(self.loss_type)
 

@@ -31,7 +31,7 @@ class BaseLatentModel(nn.Module):
         checkpoint = torch.load(autoencoder_path, map_location='cpu')
         state_dict = checkpoint['state_dict']
         self.embed_.load_state_dict(state_dict)
-        self.encoder_stats = None #checkpoint["statistics"] if checkpoint["statistics"] is not None else None
+        self.encoder_stats = checkpoint["statistics"] if checkpoint["statistics"] is not None else None
 
         if freeze_encoder:
             for para in self.embed_.parameters():
@@ -70,7 +70,6 @@ class BaseLatentModel(nn.Module):
         stats = self.encoder_stats
         if stats is None:
             return emb # when no checkpoint was loaded, there is no stats.
-
         if "standardize" in self.emb_preprocessing:
             return torch.sqrt(stats["var"]) * emb + stats["mean"]
         elif "normalize" in self.emb_preprocessing:
@@ -81,12 +80,12 @@ class BaseLatentModel(nn.Module):
             raise NotImplementedError(f"Error on the embedding preprocessing value: '{self.emb_preprocessing}'")
 
     def encode(self, video, audio):
-        #return self.preprocess(self.embed_.encode(video, audio))
-        return self.embed_.encode(video, audio)
+        return self.preprocess(self.embed_.encode(video, audio))
+        # return self.embed_.encode(video, audio)
 
     def decode(self, em_emb):
-        #return self.embed_.decode(self.undo_preprocess(em_emb))
-        return self.embed_.decode(em_emb)
+        return self.embed_.decode(self.undo_preprocess(em_emb))
+        # return self.embed_.decode(em_emb)
     
     def cond_avg(self, cond):
         '''
@@ -187,17 +186,18 @@ class LatentMLPMatcher(BaseLatentModel):
             window_end = window_start + self.window_size
             # target to be predicted (and forward diffused)
 
-            embed_s = self.encode(speaker_video, speaker_audio).reshape(batch_size*(seq_len//self.window_size), self.window_size, -1)
+            embed_s = self.encode(speaker_video, speaker_audio) # [B, 750, 128]
             embed_l = self.encode(listener_video, listener_audio).reshape(batch_size*(seq_len//self.window_size), self.window_size, -1)
 
-            model_cond = self.cond_avg(embed_s) # [B*n, 50, 128] -> [B*n, cond_embed_dim]
+            model_cond = self.cond_avg(embed_s.reshape(batch_size*(seq_len//self.window_size), self.window_size, -1)) # [B*n, 50, 128] -> [B*n, cond_embed_dim]
 
             x_start = embed_l
-            t, _ = self.schedule_sampler.sample(batch_size*(seq_len//self.window_size), listener_3dmm.device) 
+            t, _ = self.schedule_sampler.sample(batch_size*(seq_len//self.window_size), listener_3dmm.device) #每个样本取一个时间步索引
 
             model_output, loss_ldm = self.diffusion.train_(self.model, x_start, t, model_kwargs={"cond": model_cond}, k_active=k_active)
             model_output = model_output.repeat_interleave(self.k, dim=0) if k_active else model_output
 
+            model_output = model_output.reshape(batch_size, seq_len, -1)
             pred_3dmm, pred_emotion = self.decode(model_output)
 
             results = {                            
@@ -215,14 +215,13 @@ class LatentMLPMatcher(BaseLatentModel):
         else: # iterate over all windows
             batch_size, seq_len = listener_3dmm.shape[:2]
 
-            embed_s = self.encode(speaker_video, speaker_audio).reshape(batch_size*(seq_len//self.window_size), self.window_size, -1)
-            model_cond = self.cond_avg(embed_s)
+            embed_s = self.encode(speaker_video, speaker_audio)
+            model_cond = self.cond_avg(embed_s.reshape(batch_size*(seq_len//self.window_size), self.window_size, -1))
             
             output = self.diffusion.test_(self, self.model, batch_size*(seq_len//self.window_size), self.window_size, model_kwargs={"cond": model_cond})
 
+            output["z_prediction"] = output["z_prediction"].reshape(batch_size, seq_len, -1)
             pred_3dmm, pred_emotion = self.decode(output["z_prediction"])
-            pred_3dmm = pred_3dmm.reshape(batch_size, seq_len, -1)
-            pred_emotion = pred_emotion.reshape(batch_size, seq_len, -1)
 
             output["pred_3dmm"]=pred_3dmm
             output["target_3dmm"]=listener_3dmm

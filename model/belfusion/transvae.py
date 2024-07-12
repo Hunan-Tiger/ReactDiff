@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import math
+import argparse
 
 # --------------------------------------------------------------------
 class PositionalEncoding(nn.Module):
@@ -194,13 +195,14 @@ class Decoder(nn.Module):  ## Transformer
         self.window_size = window_size
         self.output_3dmm_dim = output_3dmm_dim
         self.output_emotion_dim = output_emotion_dim
-        
+
         self.encoder = Encoder(feature_dim, feature_dim)
-        decoder_layer = nn.TransformerEncoderLayer(d_model=feature_dim,
+        decoder_layer = nn.TransformerDecoderLayer(d_model=feature_dim,
                                                              nhead=n_head,
                                                              dim_feedforward=feature_dim * 2,
                                                              dropout=0.1, batch_first=True)
-        self.listener_reaction_decoder = nn.TransformerEncoder(decoder_layer, num_layers=4)
+        self.listener_reaction_decoder_1 = nn.TransformerDecoder(decoder_layer, num_layers=2)
+        self.listener_reaction_decoder_2 = nn.TransformerDecoder(decoder_layer, num_layers=2)
 
 
         self.biased_mask = init_biased_mask(n_head = n_head, max_seq_len = seq_len, period=seq_len)
@@ -217,14 +219,11 @@ class Decoder(nn.Module):  ## Transformer
             nn.SiLU(inplace=True),
             nn.Linear(feature_dim*2, output_emotion_dim)
         )
-        self.PE = PositionalEncoding(feature_dim)
 
+    def forward(self, l=None):
 
-    def forward(self, z):
-        z = z.reshape(-1, self.seq_len, self.feature_dim)
-        z = self.PE(z)
-
-        listener_reaction = self.listener_reaction_decoder(z)
+        listener_reaction = self.listener_reaction_decoder_1(l, l)
+        listener_reaction = self.listener_reaction_decoder_2(listener_reaction, listener_reaction)
 
         listener_3dmm_out = self.listener_reaction_3dmm_map_layer(listener_reaction)## [bs*n, ws, 58]
         listener_emotion_out = self.listener_reaction_emotion_map_layer(listener_reaction)
@@ -246,8 +245,6 @@ class TransformerVAE(nn.Module):
 
         self.output_3dmm_dim = cfg.output_3dmm_dim
         self.output_emotion_dim = cfg.output_emotion_dim
-        self.coeff_3dmm = cfg.coeff_3dmm
-        self.emotion = cfg.emotion
 
         self.seq_len = cfg.seq_len
         self.depth = cfg.depth
@@ -265,8 +262,8 @@ class TransformerVAE(nn.Module):
         z = self.reaction_encoder(self.Behaviour_features_fusion(a, b))
         return z
     
-    def _decode(self, z):
-        pred_3dmm, pred_emotion = self.reaction_decoder(z)
+    def _decode(self, l):
+        pred_3dmm, pred_emotion = self.reaction_decoder(l)
         return pred_3dmm, pred_emotion
     
     
@@ -280,11 +277,11 @@ class TransformerVAE(nn.Module):
         return y_3dmm, y_emotion
     
 
-    def forward(self, listener_video=None, listener_audio=None, listener_3dmm=None, listener_emotion=None, **kwargs):
+    def forward(self, listener_video=None, listener_audio=None, listener_3dmm=None, listener_emotion=None, speaker_video=None, speaker_audio=None,  **kwargs):
         batch_size, seq_len = listener_video.shape[:2]
-        features_fusion = self._encode(listener_video, listener_audio).reshape(batch_size*(seq_len // self.window_size), self.window_size, -1)
+        l_features_fusion = self._encode(listener_video, listener_audio)
 
-        pred_3dmm, pred_emotion = self._decode(features_fusion)
+        pred_3dmm, pred_emotion = self._decode(l_features_fusion)
 
         target_3dmm, target_emotion = listener_3dmm, listener_emotion
 
@@ -296,9 +293,28 @@ class TransformerVAE(nn.Module):
 if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     l_video = torch.randn(2, 750, 64+25088+1408)
-    l_audio = torch.randn(2, 750, 1536)
+    l_audio = torch.randn(2, 750, 1536+26)
     l_emotion = torch.randn(2, 750, 25)
     l_3dmm = torch.randn(2, 750, 58)
-    model = TransformerVAE()
-    res = model(l_video, l_audio, l_emotion, l_3dmm)
+    s_video = torch.randn(2, 750, 64+25088+1408)
+    s_audio = torch.randn(2, 750, 1536+26)
+    def parse_arg():
+      parser = argparse.ArgumentParser(description='PyTorch Training')
+      # Param
+      parser.add_argument('--feature_dim', default=128)
+      parser.add_argument('--hidden_dim', default=1024)
+      parser.add_argument('--window_size', default=50)
+      parser.add_argument('--video_dim', default=25088)
+      parser.add_argument('--audio_dim', default=1536)
+      parser.add_argument('--output_3dmm_dim', default=58)
+      parser.add_argument('--output_emotion_dim', default=25)
+      parser.add_argument('--seq_len', default=750)
+      parser.add_argument('--depth', default=2)
+      parser.add_argument('--device', default='cuda')
+
+      args = parser.parse_args()
+      return args
+    cfg = parse_arg()
+    model = TransformerVAE(cfg)
+    res = model(l_video, l_audio, l_3dmm, l_emotion, s_video, l_audio)
     print(res['pred_emotion'].shape, res['target_emotion'].shape, res['pred_3dmm'].shape, res['target_3dmm'].shape)

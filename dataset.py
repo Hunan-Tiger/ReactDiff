@@ -84,7 +84,7 @@ class ReactionDataset(data.Dataset):
         speaker_path = list(self._list_path.values[:, 1])  ## NoXI/065_2016-04-14_Nottingham/Expert_video/1, ...
         listener_path = list(self._list_path.values[:, 2]) ## NoXI/065_2016-04-14_Nottingham/Novice_video/1, ...
 
-        if self._split in ["val", "test"] or repeat_mirrored:  # training is always mirrored as data augmentation
+        if self._split in ["train"] or repeat_mirrored:  # training is always mirrored as data augmentation
             speaker_path_tmp = speaker_path + listener_path
             listener_path_tmp = listener_path + speaker_path
             speaker_path = speaker_path_tmp
@@ -123,7 +123,7 @@ class ReactionDataset(data.Dataset):
         changed_sign = 0
         if self._split == 'train':  # only done at training time
             changed_sign = random.randint(0, 1)
-
+        # already done before
         speaker_prefix = 'speaker' #if changed_sign == 0 else 'listener'
         listener_prefix = 'listener' #if changed_sign == 0 else 'speaker'
 
